@@ -1,0 +1,12 @@
+# Generated files
+screenshots/
+test_results/
+nul
+
+# Temporary files
+*.tmp
+~$*
+
+# OS files
+.DS_Store
+Thumbs.db
