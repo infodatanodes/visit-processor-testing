@@ -158,6 +158,45 @@ Edit `generate_test_itinerary.py` to add:
 - Install mss: `pip install mss`
 - May need to run as Administrator for screen capture
 
+## Changelog
+
+### v1.1.0 (2026-01-08)
+**Major improvements to AI-generated content and test coverage:**
+
+- **Timing Logic**: AM Intake visits now use 8:00 AM - 12:00 PM times, PM Intake uses 12:00 PM - 5:00 PM
+- **Description of Residence**: Now generates EXTERIOR-only descriptions including:
+  - House type (single/two story, apartment)
+  - Exterior material and trim colors
+  - Garage type (one-car, two-car, carport)
+  - Front yard condition
+- **Observed Field**: Detailed room-by-room walkthrough for successful visits:
+  - Who answered the door
+  - Consent request and response
+  - Home entry description ("home opens to a...")
+  - Bedroom location and description
+  - Kitchen walkthrough
+  - Refrigerator description (color, type, contents)
+  - Exit and violations status
+- **Consent Logic**: Now properly matches outcome:
+  - "Yes" only for successful visits
+  - "No" for P Denied Access
+  - "N/A" for Not Home, Wrong Address, FTR
+- **Vehicle Testing**:
+  - Test +Add button with 5 vehicles
+  - Test 2 vehicles (default)
+  - Test "No Vehicles Noted" button
+- **Red Flags Testing**: Forced testing on 2 visits with detailed descriptions including location and specifics
+- **All 5 Visits**: Now fills all visits in the test scenario
+- **Workbook Left Open**: Test completes but leaves workbook open for inspection
+
+### v1.0.0 (2026-01-08)
+- Initial release
+- Visual test execution with character-by-character typing
+- Ollama LLM integration for AI-generated text
+- Screenshot capture and HTML reporting
+- Test mode in VBA to suppress dialogs
+- Three test scenarios: Normal Day, Mid-Day Update, Unscheduled Visit
+
 ## Future Enhancements
 
 - [ ] Video recording of test execution

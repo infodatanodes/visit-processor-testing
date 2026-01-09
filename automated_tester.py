@@ -101,71 +101,149 @@ class OllamaTextGenerator:
         return "Test text entry."
 
     def generate_residence_description(self, address):
-        """Generate description of residence"""
-        prompt = f"""You are a probation officer writing a brief home visit report.
-Describe this residence in 2-3 sentences. Be professional and factual.
+        """Generate EXTERIOR description of residence only"""
+        prompt = f"""You are a probation officer describing a home's EXTERIOR only.
 Address: {address}
-Write a description of the residence (exterior and interior if applicable).
-Keep it under 50 words. Just the description, no introduction."""
-        return self.generate(prompt, 100)
 
-    def generate_observed_description(self, is_successful=True, visit_type="FTR"):
-        """Generate what was observed during visit"""
+Describe in 2-3 sentences:
+- House type (single story, two story, apartment, etc.)
+- Exterior material (brick, siding, stucco)
+- Trim color around windows and doors
+- Garage type (one-car, two-car, carport, none)
+- Front yard condition
+
+Example: "Single story brick home with white trim outlining the windows and front door. Two-car attached garage on the left side. Front yard is well-maintained with mature landscaping."
+
+Keep it under 60 words. Exterior only - do NOT mention entering the home. Just the description, no introduction."""
+        return self.generate(prompt, 120)
+
+    def generate_observed_description(self, is_successful=True, visit_type="FTR", reason=""):
+        """Generate what was observed during visit - detailed room-by-room for successful"""
         if visit_type == "FTR":
-            prompt = """You are a probation officer. Describe a failed-to-report home visit where no one answered.
-Include: knocked on door, no response, left door knocker. 2-3 sentences. Professional tone.
-Just the observation, no introduction."""
-        elif is_successful:
-            prompt = """You are a probation officer. Describe a successful home visit.
-Include: probationer was home, checked bedroom/sleeping area, checked refrigerator/freezer.
-Note if anything unusual or normal. 3-4 sentences. Professional tone.
-Just the observation, no introduction."""
-        else:
-            prompt = """You are a probation officer. Describe an unsuccessful home visit (wrong address or not home).
-2-3 sentences. Professional tone. Just the observation, no introduction."""
-        return self.generate(prompt, 150)
+            prompt = """You are a probation officer documenting an FTR (Failed to Report) home visit.
+
+Write 2-3 sentences describing:
+- Knocked on door, rang doorbell (note if doorbell camera present)
+- No response after waiting
+- Left orange door knocker with contact information
+
+Professional tone. Just the observation, no introduction."""
+            return self.generate(prompt, 100)
+
+        if not is_successful:
+            if reason == "Not Home":
+                prompt = """You are a probation officer documenting an unsuccessful home visit where no one was home.
+
+Write 2-3 sentences describing:
+- Knocked on door, rang doorbell (note if doorbell camera present)
+- No response after multiple attempts
+- Left door knocker with contact information
+
+Professional tone. Just the observation, no introduction."""
+            elif reason == "Wrong Address":
+                prompt = """You are a probation officer documenting an unsuccessful home visit - wrong address.
+
+Write 2-3 sentences describing:
+- Knocked on door, someone answered who was NOT the probationer
+- Confirmed this was not the correct residence for the probationer
+- Departed and documented the discrepancy
+
+Professional tone. Just the observation, no introduction."""
+            elif reason == "P Denied Access":
+                prompt = """You are a probation officer documenting an unsuccessful home visit where probationer denied entry.
+
+Write 2-3 sentences describing:
+- Knocked on door, probationer (P) answered
+- Officer asked for consent to enter the home
+- P refused to allow entry, visit terminated
+
+Professional tone. Just the observation, no introduction."""
+            else:
+                prompt = """You are a probation officer documenting an unsuccessful/cancelled home visit.
+Write 2-3 sentences. Professional tone. Just the observation, no introduction."""
+            return self.generate(prompt, 120)
+
+        # SUCCESSFUL visit - detailed room-by-room walkthrough
+        prompt = """You are a probation officer documenting a SUCCESSFUL home visit with detailed observations.
+
+Write a thorough description (5-7 sentences) including ALL of the following in order:
+1. Who answered the door (P = probationer)
+2. Officer asked P for consent to enter the home, P agreed
+3. Describe entering - "The home opens to a [living room/foyer/etc.]"
+4. P's bedroom location and brief description (bed made/unmade, clothes, personal items)
+5. P escorted officer to the kitchen - describe kitchen briefly
+6. Describe refrigerator (color like white/black/stainless steel, type like side-by-side/French door), describe contents (food items, beverages)
+7. Officer asked P to escort to exit, no violations noted
+
+Example flow: "P answered the front door. Officer requested consent to enter the home, P agreed. The home opens to a living room with a sectional couch and TV mounted on the wall. P's bedroom is located down the hallway on the right - queen bed was made, clothes in closet, nightstand with lamp. P escorted officer to the kitchen which had granite countertops and gas stove. White side-by-side refrigerator contained milk, eggs, lunch meat, and various condiments. Freezer had frozen vegetables and ice cream. Officer asked P to escort to the exit. No violations noted."
+
+Professional tone. Just the observation, no introduction or headers."""
+        return self.generate(prompt, 300)
 
     def generate_red_flag_description(self, flag_type):
-        """Generate red flag details"""
+        """Generate red flag details - specific location and description"""
         prompts = {
-            "Alcohol": "Describe finding alcohol during a probation home visit. 1-2 sentences. Professional.",
-            "Drugs": "Describe finding drug paraphernalia during a probation home visit. 1-2 sentences. Professional.",
-            "Guns": "Describe finding a firearm during a probation home visit. 1-2 sentences. Professional.",
-            "Knives": "Describe finding prohibited weapons/knives during a probation home visit. 1-2 sentences.",
-            "IP": "Describe finding an injured party during a probation home visit. 1-2 sentences. Professional.",
-            "Other": "Describe finding evidence of children present when probationer has no-contact order. 1-2 sentences."
+            "Alcohol": """Describe finding alcohol during a probation home visit.
+Include: exact location found (kitchen counter, bedroom nightstand, living room coffee table),
+type of alcohol (beer cans, liquor bottles, wine), quantity, and brand if visible.
+Example: "Found three empty Bud Light cans on the bedroom nightstand next to an open bottle of Jack Daniels whiskey approximately half full."
+1-2 sentences. Professional tone.""",
+
+            "Drugs": """Describe finding drug paraphernalia during a probation home visit.
+Include: exact location found, specific items seen (pipe, rolling papers, residue, baggies).
+Example: "Observed a glass pipe with burnt residue and small plastic baggies with white powder residue on the coffee table in the living room."
+1-2 sentences. Professional tone.""",
+
+            "Guns": """Describe finding a firearm during a probation home visit.
+Include: exact location found, type of firearm, whether loaded/unloaded if visible.
+Example: "Located a black semi-automatic handgun in the top drawer of the bedroom dresser. Magazine was inserted."
+1-2 sentences. Professional tone.""",
+
+            "Knives": """Describe finding prohibited weapons/knives during a probation home visit.
+Include: exact location found, type of knife/weapon, approximate size.
+Example: "Found a large hunting knife with approximately 8-inch blade under the mattress in P's bedroom."
+1-2 sentences. Professional tone.""",
+
+            "IP": """Describe observing an injured party during a probation home visit.
+Include: who was injured, visible injuries, their demeanor.
+Example: "Female present in living room had visible bruising on left arm and appeared nervous. She stated she fell but avoided eye contact when questioned."
+1-2 sentences. Professional tone.""",
+
+            "Other": """Describe finding evidence of prohibited contact or other violation during a probation home visit.
+Include: what was found, exact location, why it's concerning.
+Example: "Children's toys and clothing observed in the bedroom closet. P has active no-contact order with minor children."
+1-2 sentences. Professional tone."""
         }
         prompt = prompts.get(flag_type, prompts["Other"])
-        return self.generate(prompt, 80)
+        return self.generate(prompt, 100)
 
 
 # Fallback text when Ollama is not available
 FALLBACK_RESIDENCE_DESCRIPTIONS = [
-    "Single story brick home with attached garage. Well-maintained front yard with mature trees. Home appears to be in good condition.",
-    "Two story frame house with white siding. Chain link fence around backyard. Neighborhood is residential and quiet.",
-    "Apartment complex, unit on second floor. Building has exterior access. Parking lot was half full upon arrival.",
-    "Single story home with brown brick exterior. Small front porch. Vehicle parked in driveway.",
-    "Ranch-style home with beige brick. Two-car garage. Lawn recently mowed. Quiet residential street.",
-    "Multi-family dwelling, ground floor unit. Shared parking area. Building appears well-maintained.",
-    "Single story frame house with gray siding. Carport on left side. Small fenced backyard visible.",
-    "Two story townhouse in gated community. Unit has small front patio area. Guest parking available.",
+    "Single story brick home with white trim outlining the windows and front door. Two-car attached garage on the left side. Front yard is well-maintained with mature landscaping.",
+    "Two story frame house with tan siding and brown trim around windows. One-car detached garage in back. Front yard has small flower bed and trimmed bushes.",
+    "Apartment complex, unit on second floor with exterior access. Beige stucco exterior with white window frames. Parking lot was half full upon arrival.",
+    "Single story home with brown brick exterior and cream-colored trim. Carport on right side, no enclosed garage. Small front porch with concrete steps.",
+    "Ranch-style home with beige brick and dark green trim around windows and front door. Two-car garage attached on left. Lawn recently mowed, quiet residential street.",
+    "Multi-family dwelling, ground floor unit. Red brick exterior with white trim around windows. Shared parking area in front. Building appears well-maintained.",
+    "Single story frame house with gray siding and white window trim. Carport on left side, chain link fence around property. Small fenced backyard visible from front.",
+    "Two story townhouse with stone and stucco exterior. Black trim around windows. One-car garage on ground level. Small landscaped front area.",
 ]
 
 FALLBACK_OBSERVED_DESCRIPTIONS = [
-    "Probationer was home and cooperative. Checked bedroom area - appeared organized with personal belongings. Inspected refrigerator and freezer - adequately stocked with food items. No concerns noted.",
-    "Made contact with probationer at residence. Conducted walkthrough of living areas. Sleeping area was the master bedroom, appeared clean. Kitchen inspection showed working refrigerator with food. No issues observed.",
-    "Probationer answered door promptly. Home was clean and organized. Checked bedroom - single bed, clothes in closet. Refrigerator contained groceries, freezer had frozen meals. Nothing unusual noted.",
-    "Contact made with probationer. Another adult (stated girlfriend) was present in living room. Bedroom check completed - normal furnishings. Refrigerator/freezer inspection showed adequate food supply.",
-    "Probationer was cooperative during visit. Living conditions appeared stable. Bedroom had bed, dresser, and closet with clothing. Kitchen fully functional with food in refrigerator and freezer.",
+    "P answered the front door. Officer requested consent to enter the home, P agreed. The home opens to a living room with a sectional couch and TV mounted on the wall. P's bedroom is located down the hallway on the right - queen bed was made, clothes in closet, nightstand with lamp. P escorted officer to the kitchen which had granite countertops and gas stove. White side-by-side refrigerator contained milk, eggs, lunch meat, and various condiments. Freezer had frozen vegetables and ice cream. Officer asked P to escort to the exit. No violations noted.",
+    "P came to the door after second knock. Officer asked for consent to enter, P agreed. Home opens to a foyer leading to living room. P's bedroom is the first door on the left - full bed made, dresser with personal items, closet organized. P walked officer to kitchen area with electric stove and dishwasher. Stainless steel French door refrigerator contained various food items including fruits, vegetables, and beverages. Officer asked P to escort to exit. No violations noted.",
+    "P answered door promptly. Consent to enter was given. Home opens directly to living room with couch and recliner. P's sleeping area is in back bedroom - twin bed unmade, clothes on floor, small TV on dresser. P escorted to kitchen which was clean with basic appliances. Black top-freezer refrigerator contained leftovers, milk, and condiments. Officer requested P escort to door. No violations noted.",
+    "P opened door after doorbell ring. Officer requested and received consent to enter. Home opens to combined living/dining area. P indicated bedroom is down hallway - queen bed with blue comforter, nightstand, closet with hanging clothes. Kitchen had tile floor and white cabinets. White side-by-side refrigerator well-stocked with groceries. P escorted officer out. No violations noted.",
 ]
 
 FALLBACK_RED_FLAG_DESCRIPTIONS = [
-    "Found several empty beer cans in kitchen trash. Probationer has alcohol restriction.",
-    "Observed what appeared to be marijuana residue and rolling papers on coffee table.",
-    "Found handgun in bedroom closet. Probationer is prohibited from possessing firearms.",
-    "Large hunting knife found under mattress. Probationer has weapons restriction.",
-    "Female present had visible bruising on arms. She stated she fell but seemed evasive.",
-    "Children's toys and clothing observed in bedroom. Probationer has no-contact order with minors.",
+    "Found three empty Bud Light cans on the bedroom nightstand next to an open bottle of Jack Daniels whiskey approximately half full.",
+    "Observed a glass pipe with burnt residue and small plastic baggies with white powder residue on the coffee table in the living room.",
+    "Located a black semi-automatic handgun in the top drawer of the bedroom dresser. Magazine was inserted.",
+    "Found a large hunting knife with approximately 8-inch blade under the mattress in P's bedroom.",
+    "Female present in living room had visible bruising on left arm and appeared nervous. She stated she fell but avoided eye contact when questioned.",
+    "Children's toys and clothing observed in the bedroom closet. P has active no-contact order with minor children.",
 ]
 
 
@@ -453,8 +531,13 @@ class VisitDocumentTester:
         time.sleep(1)
         print("Excel ready!")
 
-    def teardown(self):
+    def teardown(self, keep_open=False):
         """Clean up Excel"""
+        if keep_open:
+            print("\n*** Workbook left open for inspection ***")
+            pythoncom.CoUninitialize()
+            return
+
         if self.workbook:
             try:
                 self.workbook.Close(SaveChanges=False)
@@ -470,6 +553,23 @@ class VisitDocumentTester:
     def action_delay(self, multiplier=1.0):
         """Delay between actions"""
         time.sleep(self.speed["action"] * multiplier)
+
+    def scroll_to_cell(self, cell):
+        """Scroll to make cell visible at top of screen"""
+        try:
+            self.excel.Application.Goto(cell, Scroll=True)
+            time.sleep(0.1)
+        except:
+            pass
+
+    def scroll_to_row(self, ws, row):
+        """Scroll to show specific row at top"""
+        try:
+            cell = ws.Cells(row, 1)
+            self.excel.Application.Goto(cell, Scroll=True)
+            time.sleep(0.1)
+        except:
+            pass
 
     def run_macro(self, macro_name):
         """Execute a VBA macro"""
@@ -583,13 +683,48 @@ class VisitDocumentTester:
             self.action_delay(2)
         ))
 
-        # Step 6: Fill out first visit
-        self.step("Fill out Visit #1", lambda: self._fill_visit(1))
+        # =====================================================
+        # Fill ALL 5 visits with specific test configurations
+        # =====================================================
 
-        # Step 7: Fill out second visit
-        self.step("Fill out Visit #2", lambda: self._fill_visit(2))
+        # Visit 1: Successful, 2 vehicles, no red flag
+        self.step("Fill out Visit #1 (Successful, 2 vehicles)", lambda: self._fill_visit(1, {
+            "force_outcome": "Successful",
+            "vehicle_count": 2,
+            "force_red_flag": False
+        }))
 
-        # Step 8: Refresh metrics
+        # Visit 2: Successful, 5 vehicles (test +Add button), RED FLAG
+        self.step("Fill out Visit #2 (Successful, 5 vehicles, RED FLAG)", lambda: self._fill_visit(2, {
+            "force_outcome": "Successful",
+            "vehicle_count": 5,
+            "force_red_flag": True
+        }))
+
+        # Visit 3: Successful, No Vehicles Noted button, RED FLAG
+        self.step("Fill out Visit #3 (Successful, No Vehicles, RED FLAG)", lambda: self._fill_visit(3, {
+            "force_outcome": "Successful",
+            "vehicle_count": 0,
+            "force_red_flag": True
+        }))
+
+        # Visit 4: Unsuccessful - P Denied Access
+        self.step("Fill out Visit #4 (Unsuccessful - P Denied Access)", lambda: self._fill_visit(4, {
+            "force_outcome": "Unsuccessful",
+            "force_reason": "P Denied Access",
+            "vehicle_count": 1,
+            "force_red_flag": False
+        }))
+
+        # Visit 5: Unsuccessful - Not Home
+        self.step("Fill out Visit #5 (Unsuccessful - Not Home)", lambda: self._fill_visit(5, {
+            "force_outcome": "Unsuccessful",
+            "force_reason": "Not Home",
+            "vehicle_count": 1,
+            "force_red_flag": False
+        }))
+
+        # Step: Refresh metrics
         self.step("Refresh metrics", lambda: (
             self.run_macro("RefreshMetrics"),
             self.action_delay()
@@ -755,11 +890,30 @@ class VisitDocumentTester:
 
         self.action_delay(2)
 
-    def _fill_visit(self, visit_num):
-        """Fill out a visit with AI-generated content"""
+    def _fill_visit(self, visit_num, test_config=None):
+        """Fill out a visit with AI-generated content based on user requirements
+
+        test_config dict can specify:
+        - force_outcome: "Successful" or "Unsuccessful"
+        - force_reason: specific reason for unsuccessful
+        - vehicle_count: number of vehicles (0 = No Vehicles Noted, 5 = test Add button)
+        - force_red_flag: True to force red flag testing
+
+        Visit Sheet layout (based on VBA Module4_ExcelVisits.bas):
+        - Text areas (Description, Observed, Red Flag Details) merge columns A-F (1-6)
+        - Input cells like Residents, Consent merge B-F (columns 2-6)
+        - Red Flags dropdown is column B (2)
+        - Red Flag category checkboxes are at RedFlagRow + 6, columns 1-5
+        - Other text for red flags is column 6
+        """
         ws = self.get_sheet("Visit Sheet")
         if not ws:
             return
+
+        if test_config is None:
+            test_config = {}
+
+        print(f"      Filling Visit #{visit_num}...")
 
         # Find visit section
         visit_start = self._find_visit_row(ws, visit_num)
@@ -767,63 +921,245 @@ class VisitDocumentTester:
             print(f"    Could not find Visit #{visit_num}")
             return
 
-        # Get address for context
+        # Scroll to visit section so user can follow along
+        self.scroll_to_row(ws, visit_start)
+        ws.Activate()
+        self.action_delay(0.5)
+
+        # Get address and visit type for context
         address = ""
-        for r in range(visit_start, visit_start + 10):
-            if ws.Cells(r, 1).Value == "Address:":
-                address = str(ws.Cells(r, 2).Value or "")
-                break
-
-        # Get visit type
         visit_type = ""
-        for r in range(visit_start, visit_start + 10):
-            if ws.Cells(r, 1).Value == "Type of Visit:":
-                visit_type = str(ws.Cells(r, 2).Value or "")
-                break
-
-        # Determine if successful (random for testing)
-        is_successful = random.random() > 0.3
-        outcome = "Successful" if is_successful else "Unsuccessful"
-
-        # Fill fields
-        for r in range(visit_start, visit_start + 50):
+        for r in range(visit_start, visit_start + 15):
             label = ws.Cells(r, 1).Value
+            if label == "Address:":
+                address = str(ws.Cells(r, 2).Value or "")
+            elif label == "Type of Visit:":
+                visit_type = str(ws.Cells(r, 2).Value or "")
 
-            if label == "Description of Residence:":
-                # Next row is the text area
+        # =====================================================
+        # STEP 1: DECIDE OUTCOME AND REASON FIRST
+        # This determines how all other fields are filled
+        # =====================================================
+        if "force_outcome" in test_config:
+            outcome = test_config["force_outcome"]
+            is_successful = (outcome == "Successful")
+        else:
+            # FTR visits are always unsuccessful (not home)
+            if visit_type == "FTR":
+                is_successful = False
+            else:
+                is_successful = random.random() > 0.2  # 80% successful
+            outcome = "Successful" if is_successful else "Unsuccessful"
+
+        # Determine reason for unsuccessful visits
+        reason = ""
+        if not is_successful:
+            if "force_reason" in test_config:
+                reason = test_config["force_reason"]
+            elif visit_type == "FTR":
+                reason = random.choice(["Not Home", "Wrong Address"])
+            else:
+                reason = random.choice(["Not Home", "Wrong Address", "P Denied Access"])
+
+        print(f"        [Outcome decided: {outcome}" + (f", Reason: {reason}]" if reason else "]"))
+
+        # =====================================================
+        # STEP 2: CALCULATE TIMES BASED ON VISIT TYPE
+        # AM Intake: 8:00 AM - 12:00 PM
+        # PM Intake: 12:00 PM - 5:00 PM
+        # Others: spread throughout day
+        # =====================================================
+        if "AM" in visit_type or visit_type == "AM Intake":
+            base_hour = 8 + (visit_num - 1) % 4  # 8, 9, 10, 11 AM
+        elif "PM" in visit_type or visit_type == "PM Intake":
+            base_hour = 12 + (visit_num - 1) % 5  # 12, 1, 2, 3, 4 PM
+        else:
+            # Other types - spread throughout day
+            base_hour = 8 + (visit_num - 1)
+            if base_hour > 16:
+                base_hour = 16
+
+        base_minute = random.randint(0, 45)
+        arrival = datetime.now().replace(hour=base_hour, minute=base_minute, second=0)
+        visit_duration = random.randint(8, 12)  # 8-12 minutes
+        departure = arrival + timedelta(minutes=visit_duration)
+
+        # =====================================================
+        # STEP 3: DETERMINE CONSENT BASED ON OUTCOME
+        # =====================================================
+        if visit_type == "FTR" or reason in ["Not Home", "Wrong Address"]:
+            consent_value = "N/A"
+        elif reason == "P Denied Access":
+            consent_value = "No"
+        elif is_successful:
+            consent_value = "Yes"
+        else:
+            consent_value = "N/A"
+
+        # =====================================================
+        # STEP 4: FILL ALL FIELDS
+        # =====================================================
+        for r in range(visit_start, visit_start + 60):
+            label = ws.Cells(r, 1).Value
+            if label is None:
+                continue
+
+            # === RESIDENTS (only if successful - someone was home) ===
+            if label == "Residents:":
+                self.scroll_to_row(ws, r)
+                if is_successful:
+                    residents = "P"
+                    if random.random() > 0.5:
+                        residents += ", spouse"
+                    ws.Cells(r, 2).Value = residents
+                    print(f"        Residents: {residents}")
+                else:
+                    print(f"        Residents: (skipped - {reason if reason else 'no one home'})")
+                self.action_delay(0.5)
+
+            # === DESCRIPTION OF RESIDENCE (ALWAYS - exterior only) ===
+            elif label == "Description of Residence:":
+                text_row = r + 1
+                self.scroll_to_row(ws, r)
+                print(f"        Generating description of residence (exterior)...")
                 desc = self.ollama.generate_residence_description(address)
-                text_row = r + 1
-                self.typer.type_in_cell(ws.Cells(text_row, 2), desc)
+                print(f"        Typing description...")
+                self.typer.type_in_cell(ws.Cells(text_row, 1), desc)
 
+            # === CONSENT TO ENTER HOME ===
+            elif label == "Consent to Enter Home:":
+                ws.Cells(r, 2).Value = consent_value
+                print(f"        Consent: {consent_value}")
+                self.action_delay(0.5)
+
+            # === OBSERVED (ALWAYS - content depends on outcome) ===
             elif label == "Observed:":
-                # Next row is the text area
-                obs = self.ollama.generate_observed_description(is_successful, visit_type)
                 text_row = r + 1
-                self.typer.type_in_cell(ws.Cells(text_row, 2), obs)
+                self.scroll_to_row(ws, r)
+                print(f"        Generating observed description...")
+                obs = self.ollama.generate_observed_description(is_successful, visit_type, reason)
+                print(f"        Typing observed...")
+                self.typer.type_in_cell(ws.Cells(text_row, 1), obs)
 
-            elif label == "Arrived:":
-                # Set arrival time
-                arrival = datetime.now().replace(hour=random.randint(8, 14),
-                                                  minute=random.choice([0, 15, 30, 45]))
-                ws.Cells(r, 2).Value = arrival.strftime("%I:%M %p")
-                self.action_delay(0.3)
+            # === VEHICLES ===
+            elif label == "Vehicles:":
+                self.scroll_to_row(ws, r)
+                vehicle_count = test_config.get("vehicle_count", 1)
+                vehicle_data_row = r + 2  # First data row
 
-                # Set departure (15-45 min later)
-                departure = arrival + timedelta(minutes=random.randint(15, 45))
-                ws.Cells(r, 4).Value = departure.strftime("%I:%M %p")
-                self.action_delay(0.3)
+                if vehicle_count == 0:
+                    # Test "No Vehicles Noted" button
+                    print(f"        Testing 'No Vehicles Noted' button...")
+                    try:
+                        self.excel.Application.Run("NoVehiclesNoted", visit_num)
+                        print(f"        'No Vehicles Noted' clicked")
+                    except Exception as e:
+                        # Fallback: just leave empty
+                        print(f"        Button error, leaving vehicles empty: {e}")
+                    self.action_delay(0.5)
+                else:
+                    # Add vehicles
+                    plates = ["ABC-1234", "XYZ-5678", "DEF-9012", "GHI-3456", "JKL-7890"]
+                    colors = ["Blue", "Red", "White", "Black", "Silver"]
+                    makes = ["Honda", "Toyota", "Ford", "Chevrolet", "Nissan"]
+                    models = ["Civic", "Camry", "F-150", "Malibu", "Altima"]
 
-            elif label == "Outcome:":
-                ws.Cells(r, 2).Value = outcome
-                self.action_delay(0.3)
+                    for v in range(vehicle_count):
+                        if v >= 2:
+                            # Need to add more rows - click Add Vehicle button
+                            print(f"        Clicking '+Add' button for vehicle {v+1}...")
+                            try:
+                                self.excel.Application.Run("AddVehicleRow", visit_num)
+                                self.action_delay(0.5)
+                            except Exception as e:
+                                print(f"        Add button error: {e}")
+                                break
 
-                if not is_successful:
-                    # Set reason
-                    reasons = ["Not Home", "Wrong Address", "Cancelled"]
-                    ws.Cells(r, 4).Value = random.choice(reasons)
+                        current_row = vehicle_data_row + v
+                        ws.Cells(current_row, 1).Value = plates[v % len(plates)]
+                        ws.Cells(current_row, 2).Value = colors[v % len(colors)]
+                        ws.Cells(current_row, 3).Value = makes[v % len(makes)]
+                        ws.Cells(current_row, 4).Value = models[v % len(models)]
+                        print(f"        Added vehicle {v+1}: {colors[v % len(colors)]} {makes[v % len(makes)]} {models[v % len(models)]}")
+                        self.action_delay(0.3)
+
+            # === RED FLAGS ===
+            elif label == "Red Flags:":
+                self.scroll_to_row(ws, r)
+                do_red_flag = test_config.get("force_red_flag", False)
+
+                if do_red_flag and is_successful:
+                    print(f"        Setting Red Flag to Yes...")
+                    ws.Cells(r, 2).Value = "Yes"
+                    self.action_delay(0.5)
+
+                    # Toggle red flags section
+                    try:
+                        self.excel.Application.Run("ToggleRedFlagsSection", ws, r, True)
+                    except:
+                        pass
                     self.action_delay(0.3)
 
-                break  # Outcome is typically last in the visit section
+                    # Choose flag type and generate details
+                    flag_types = ["Alcohol", "Drugs", "Guns", "Knives", "IP"]
+                    flag_type = random.choice(flag_types)
+                    print(f"        Generating red flag details ({flag_type})...")
+                    details = self.ollama.generate_red_flag_description(flag_type)
+
+                    details_row = r + 2
+                    self.scroll_to_row(ws, details_row)
+                    print(f"        Typing red flag details...")
+                    self.typer.type_in_cell(ws.Cells(details_row, 1), details)
+
+                    # Check the matching checkbox (row r+6)
+                    checkbox_row = r + 6
+                    checkbox_col = {"Alcohol": 1, "Drugs": 2, "Guns": 3, "Knives": 4, "IP": 5}
+                    ws.Cells(checkbox_row, checkbox_col.get(flag_type, 1)).Value = "X"
+                    print(f"        Checked {flag_type} checkbox")
+                    self.action_delay(0.5)
+                else:
+                    print(f"        Red Flags: None")
+
+            # === ARRIVED / DEPARTED ===
+            elif label == "Arrived:":
+                self.scroll_to_row(ws, r)
+                arrival_str = arrival.strftime("%I:%M %p")
+                ws.Cells(r, 2).Value = arrival_str
+                print(f"        Arrived: {arrival_str}")
+                self.action_delay(0.3)
+
+                departure_str = departure.strftime("%I:%M %p")
+                ws.Cells(r, 4).Value = departure_str
+                print(f"        Departed: {departure_str}")
+                self.action_delay(0.3)
+
+            # === OUTCOME ===
+            elif label == "Outcome:":
+                self.scroll_to_row(ws, r)
+                ws.Cells(r, 2).Value = outcome
+                print(f"        Outcome: {outcome}")
+                self.action_delay(0.3)
+
+                if not is_successful and reason:
+                    ws.Cells(r, 4).Value = reason
+                    print(f"        Reason: {reason}")
+                    self.action_delay(0.3)
+
+                break  # Outcome is last field
+
+        # === TEST EXPORT BUTTON ===
+        print(f"        Testing Export button...")
+        self.scroll_to_row(ws, visit_start)
+        self.action_delay(0.5)
+
+        try:
+            self.excel.Application.Run("ExportSingleVisitByNum", visit_num)
+            print(f"        Export button clicked - Word document opened")
+            self.action_delay(2)
+        except Exception as e:
+            print(f"        Export button error: {e}")
+
+        print(f"      Visit #{visit_num} completed ({outcome})")
 
     def _find_visit_row(self, ws, visit_num):
         """Find the starting row of a visit"""
@@ -932,8 +1268,8 @@ def main():
     else:
         print("Ollama: Not available (using fallback text)")
 
-    # Create tester
-    tester = VisitDocumentTester(workbook_path, speed="normal")
+    # Create tester - use "slow" speed to give AI time to generate good content
+    tester = VisitDocumentTester(workbook_path, speed="slow")
 
     try:
         tester.setup()
@@ -943,24 +1279,27 @@ def main():
         print("RUNNING TEST SCENARIOS")
         print("="*60)
 
-        # Scenario 1: Normal day
+        # Scenario 1: Normal day (only run first scenario for testing)
         tester.scenario_normal_day(itinerary_5)
 
-        # Reset workbook for next test
-        tester.workbook.Close(SaveChanges=False)
-        tester.workbook = tester.excel.Workbooks.Open(workbook_path)
-        time.sleep(1)
+        # TEMPORARILY DISABLED - uncomment to run all scenarios
+        # # Reset workbook for next test
+        # tester.workbook.Close(SaveChanges=False)
+        # tester.workbook = tester.excel.Workbooks.Open(workbook_path)
+        # tester.excel.Application.Run("EnableTestMode")  # Re-enable test mode
+        # time.sleep(1)
 
-        # Scenario 2: Mid-day update
-        tester.scenario_mid_day_update(itinerary_5, itinerary_5_updated)
+        # # Scenario 2: Mid-day update
+        # tester.scenario_mid_day_update(itinerary_5, itinerary_5_updated)
 
-        # Reset
-        tester.workbook.Close(SaveChanges=False)
-        tester.workbook = tester.excel.Workbooks.Open(workbook_path)
-        time.sleep(1)
+        # # Reset
+        # tester.workbook.Close(SaveChanges=False)
+        # tester.workbook = tester.excel.Workbooks.Open(workbook_path)
+        # tester.excel.Application.Run("EnableTestMode")  # Re-enable test mode
+        # time.sleep(1)
 
-        # Scenario 3: Unscheduled visit
-        tester.scenario_unscheduled_visit(itinerary_8)
+        # # Scenario 3: Unscheduled visit
+        # tester.scenario_unscheduled_visit(itinerary_8)
 
         # Generate report
         report_path = tester.generate_report()
@@ -980,8 +1319,9 @@ def main():
         traceback.print_exc()
 
     finally:
-        tester.teardown()
-        print("\nTest complete.")
+        # Keep workbook open for inspection
+        tester.teardown(keep_open=True)
+        print("\nTest complete. Workbook left open for inspection.")
 
 
 if __name__ == "__main__":
