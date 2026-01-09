@@ -446,6 +446,10 @@ class VisitDocumentTester:
                                   delay_per_char=self.speed["char"],
                                   delay_per_word=self.speed["word"])
 
+        # Enable test mode to suppress MsgBox dialogs
+        print("Enabling test mode (suppressing dialogs)...")
+        self.excel.Application.Run("EnableTestMode")
+
         time.sleep(1)
         print("Excel ready!")
 
@@ -492,7 +496,7 @@ class VisitDocumentTester:
 
     def step(self, description, action_func=None, screenshot=True):
         """Execute and record a test step"""
-        print(f"  → {description}")
+        print(f"  -> {description}")
 
         try:
             if action_func:
@@ -522,7 +526,7 @@ class VisitDocumentTester:
         if self.current_test:
             self.current_test.finish()
             self.test_results.append(self.current_test)
-            status_symbol = "✓" if self.current_test.status == "pass" else "✗"
+            status_symbol = "PASS" if self.current_test.status == "pass" else "FAIL"
             print(f"\nResult: {status_symbol} {self.current_test.status.upper()}")
             print(f"Duration: {self.current_test.duration:.1f}s")
 
@@ -734,27 +738,22 @@ class VisitDocumentTester:
         self.action_delay(0.3)
 
     def _load_itinerary_direct(self, file_path):
-        """Load itinerary by directly importing data (bypasses file dialog)"""
-        # Open the itinerary file
-        wb_itinerary = self.excel.Workbooks.Open(file_path, ReadOnly=True)
-        ws_itinerary = wb_itinerary.Sheets(1)
-
-        # Get main workbook and sheet
-        main_ws = self.get_sheet("Visit Document Processor")
-
-        # Copy data range (simplified - in real test would match exact format)
-        # For now, we trigger the macro after placing file path
-        wb_itinerary.Close(SaveChanges=False)
-
-        # Use the LoadExcelFile macro with the file path
-        # Store file path in a temp location the macro can read, or use SendKeys
+        """Load itinerary using test helper macro (no file dialog)"""
         print(f"    Loading: {os.path.basename(file_path)}")
-        self.action_delay()
+
+        # Use the test helper macro that accepts a file path directly
+        self.excel.Application.Run("LoadExcelFileFromPath", file_path)
+
+        self.action_delay(2)
 
     def _add_updated_itinerary_direct(self, file_path):
-        """Add updated itinerary"""
+        """Add updated itinerary using test helper macro (no file dialog)"""
         print(f"    Adding updated: {os.path.basename(file_path)}")
-        self.action_delay()
+
+        # Use the test helper macro that accepts a file path directly
+        self.excel.Application.Run("AddUpdatedItineraryFromPath", file_path)
+
+        self.action_delay(2)
 
     def _fill_visit(self, visit_num):
         """Fill out a visit with AI-generated content"""
@@ -915,7 +914,7 @@ def main():
 
     # Paths
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    workbook_path = os.path.join(base_dir, "Visit_Document_Processor_TEST.xlsm")
+    workbook_path = os.path.join(base_dir, "Visit_Document_Processor_TEST2.xlsm")
     itinerary_5 = os.path.join(base_dir, "test_itineraries", "test_itinerary_5_visits.xlsx")
     itinerary_5_updated = os.path.join(base_dir, "test_itineraries", "test_itinerary_5_updated_3more.xlsx")
     itinerary_8 = os.path.join(base_dir, "test_itineraries", "test_itinerary_8_visits.xlsx")
