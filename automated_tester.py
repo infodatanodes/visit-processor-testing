@@ -858,6 +858,109 @@ class VisitDocumentTester:
 
         self.finish_test()
 
+    def scenario_extended_test(self, itinerary_path, updated_itinerary_path, total_visits, update_after_visit, test_name):
+        """
+        Extended test scenario with mid-day update
+        - Load itinerary with N visits
+        - Fill visits up to update_after_visit
+        - Add updated itinerary
+        - Fill remaining visits
+        """
+        self.start_test(test_name)
+
+        # Navigate and setup
+        self.step("Navigate to main tab", lambda: (
+            self.workbook.Sheets("Visit Document Processor").Activate(),
+            self.action_delay()
+        ))
+
+        self.step("Set date and officers", lambda: self._setup_date_officers())
+
+        # Load itinerary
+        self.step(f"Load itinerary ({total_visits} visits)", lambda: (
+            self._load_itinerary_direct(itinerary_path),
+            self.action_delay()
+        ))
+
+        # Create sheet
+        self.step("Create Visit Sheet", lambda: (
+            self.run_macro("CreateExcelVisitSheet"),
+            self.action_delay(2)
+        ))
+
+        # Fill visits up to update point
+        for v in range(1, update_after_visit + 1):
+            # Vary the test configs for different visits
+            config = self._get_visit_config(v, total_visits)
+            self.step(f"Fill Visit #{v}", lambda v=v, config=config: self._fill_visit(v, config))
+
+        # Add updated itinerary
+        self.step("Add updated itinerary (mid-day update)", lambda: (
+            self._add_updated_itinerary_direct(updated_itinerary_path),
+            self.action_delay(2)
+        ))
+
+        # Get new total visits after update
+        ws = self.get_sheet("Visit Sheet")
+        new_total = self._count_visits(ws)
+        print(f"    [New total visits after update: {new_total}]")
+
+        # Fill remaining visits
+        for v in range(update_after_visit + 1, new_total + 1):
+            config = self._get_visit_config(v, new_total)
+            self.step(f"Fill Visit #{v}", lambda v=v, config=config: self._fill_visit(v, config))
+
+        # Refresh metrics
+        self.step("Refresh metrics", lambda: (
+            self.run_macro("RefreshMetrics"),
+            self.action_delay()
+        ))
+
+        self.step("Validate metrics", lambda: self._validate_metrics())
+
+        self.finish_test()
+
+    def _get_visit_config(self, visit_num, total_visits):
+        """Generate varied test config for a visit"""
+        config = {}
+
+        # Vary outcomes - 80% successful
+        if visit_num % 5 == 0:
+            config["force_outcome"] = "Unsuccessful"
+            config["force_reason"] = "Not Home"
+        elif visit_num % 7 == 0:
+            config["force_outcome"] = "Unsuccessful"
+            config["force_reason"] = "P Denied Access"
+        else:
+            config["force_outcome"] = "Successful"
+
+        # Vary vehicles
+        if visit_num == 2:
+            config["vehicle_count"] = 5  # Test +Add button
+        elif visit_num % 4 == 0:
+            config["vehicle_count"] = 0  # Test No Vehicles Noted
+        elif visit_num % 3 == 0:
+            config["vehicle_count"] = 2
+        else:
+            config["vehicle_count"] = 1
+
+        # Red flags on some visits (successful only)
+        if visit_num in [2, 6, 10, 14] and config.get("force_outcome") == "Successful":
+            config["force_red_flag"] = True
+        else:
+            config["force_red_flag"] = False
+
+        return config
+
+    def _count_visits(self, ws):
+        """Count total visits in worksheet"""
+        count = 0
+        for r in range(1, 1000):
+            cell_val = ws.Cells(r, 1).Value
+            if cell_val and "VISIT #" in str(cell_val):
+                count += 1
+        return count
+
     # =========================================================================
     # HELPER METHODS
     # =========================================================================
@@ -1004,7 +1107,7 @@ class VisitDocumentTester:
             if label is None:
                 continue
 
-            # === RESIDENTS (only if successful - someone was home) ===
+            # === RESIDENTS ===
             if label == "Residents:":
                 self.scroll_to_row(ws, r)
                 if is_successful:
@@ -1013,8 +1116,16 @@ class VisitDocumentTester:
                         residents += ", spouse"
                     ws.Cells(r, 2).Value = residents
                     print(f"        Residents: {residents}")
+                elif reason == "P Denied Access":
+                    # P answered the door but denied access
+                    ws.Cells(r, 2).Value = "P"
+                    print(f"        Residents: P (answered but denied access)")
+                elif reason in ["Not Home", "Wrong Address"]:
+                    # No one home or wrong address - leave blank or Unknown
+                    ws.Cells(r, 2).Value = ""
+                    print(f"        Residents: (no one home)")
                 else:
-                    print(f"        Residents: (skipped - {reason if reason else 'no one home'})")
+                    print(f"        Residents: (skipped)")
                 self.action_delay(0.5)
 
             # === DESCRIPTION OF RESIDENCE (ALWAYS - exterior only) ===
@@ -1045,7 +1156,7 @@ class VisitDocumentTester:
             elif label == "Vehicles:":
                 self.scroll_to_row(ws, r)
                 vehicle_count = test_config.get("vehicle_count", 1)
-                vehicle_data_row = r + 2  # First data row
+                vehicle_data_row = r + 2  # First data row (after header)
 
                 if vehicle_count == 0:
                     # Test "No Vehicles Noted" button
@@ -1058,30 +1169,32 @@ class VisitDocumentTester:
                         print(f"        Button error, leaving vehicles empty: {e}")
                     self.action_delay(0.5)
                 else:
-                    # Add vehicles
+                    # Add vehicles - fill from TOP row, add new rows BEFORE filling
                     plates = ["ABC-1234", "XYZ-5678", "DEF-9012", "GHI-3456", "JKL-7890"]
                     colors = ["Blue", "Red", "White", "Black", "Silver"]
                     makes = ["Honda", "Toyota", "Ford", "Chevrolet", "Nissan"]
                     models = ["Civic", "Camry", "F-150", "Malibu", "Altima"]
 
-                    for v in range(vehicle_count):
-                        if v >= 2:
-                            # Need to add more rows - click Add Vehicle button
-                            print(f"        Clicking '+Add' button for vehicle {v+1}...")
-                            try:
-                                self.excel.Application.Run("AddVehicleRow", visit_num)
-                                self.action_delay(0.5)
-                            except Exception as e:
-                                print(f"        Add button error: {e}")
-                                break
+                    # First, add all needed extra rows (beyond the default 2)
+                    extra_rows_needed = max(0, vehicle_count - 2)
+                    for _ in range(extra_rows_needed):
+                        print(f"        Clicking '+Add' button to add vehicle row...")
+                        try:
+                            self.excel.Application.Run("AddVehicleRow", visit_num)
+                            self.action_delay(0.3)
+                        except Exception as e:
+                            print(f"        Add button error: {e}")
+                            break
 
+                    # Now fill vehicles from TOP row down
+                    for v in range(vehicle_count):
                         current_row = vehicle_data_row + v
                         ws.Cells(current_row, 1).Value = plates[v % len(plates)]
                         ws.Cells(current_row, 2).Value = colors[v % len(colors)]
                         ws.Cells(current_row, 3).Value = makes[v % len(makes)]
                         ws.Cells(current_row, 4).Value = models[v % len(models)]
-                        print(f"        Added vehicle {v+1}: {colors[v % len(colors)]} {makes[v % len(makes)]} {models[v % len(models)]}")
-                        self.action_delay(0.3)
+                        print(f"        Vehicle {v+1}: {colors[v % len(colors)]} {makes[v % len(makes)]} {models[v % len(models)]}")
+                        self.action_delay(0.2)
 
             # === RED FLAGS ===
             elif label == "Red Flags:":
@@ -1268,38 +1381,78 @@ def main():
     else:
         print("Ollama: Not available (using fallback text)")
 
-    # Create tester - use "slow" speed to give AI time to generate good content
-    tester = VisitDocumentTester(workbook_path, speed="slow")
+    # Create tester - use "normal" speed for extended tests
+    tester = VisitDocumentTester(workbook_path, speed="normal")
 
     try:
         tester.setup()
 
         # Run scenarios
         print("\n" + "="*60)
-        print("RUNNING TEST SCENARIOS")
+        print("RUNNING EXTENDED TEST SCENARIOS")
         print("="*60)
 
-        # Scenario 1: Normal day (only run first scenario for testing)
-        tester.scenario_normal_day(itinerary_5)
+        # =====================================================
+        # TEST 1: 8 visits, update after visit 6
+        # =====================================================
+        itinerary_8_updated = os.path.join(base_dir, "test_itineraries", "test_itinerary_8_updated_3more.xlsx")
+        tester.scenario_extended_test(
+            itinerary_path=itinerary_8,
+            updated_itinerary_path=itinerary_8_updated,
+            total_visits=8,
+            update_after_visit=6,
+            test_name="Extended Test: 8 Visits + Mid-Day Update"
+        )
 
-        # TEMPORARILY DISABLED - uncomment to run all scenarios
-        # # Reset workbook for next test
-        # tester.workbook.Close(SaveChanges=False)
-        # tester.workbook = tester.excel.Workbooks.Open(workbook_path)
-        # tester.excel.Application.Run("EnableTestMode")  # Re-enable test mode
-        # time.sleep(1)
+        # Generate report for first test
+        report1 = tester.generate_report()
+        print(f"\n*** Test 1 Report: {report1} ***")
+        print("*** Workbook left open - opening new workbook for Test 2 ***\n")
 
-        # # Scenario 2: Mid-day update
-        # tester.scenario_mid_day_update(itinerary_5, itinerary_5_updated)
+        # Reset for Test 2 - open fresh workbook
+        tester.workbook.Close(SaveChanges=False)
+        tester.workbook = tester.excel.Workbooks.Open(workbook_path)
+        tester.excel.Application.Run("EnableTestMode")
+        tester.test_results = []  # Reset results for new report
+        time.sleep(2)
 
-        # # Reset
-        # tester.workbook.Close(SaveChanges=False)
-        # tester.workbook = tester.excel.Workbooks.Open(workbook_path)
-        # tester.excel.Application.Run("EnableTestMode")  # Re-enable test mode
-        # time.sleep(1)
+        # =====================================================
+        # TEST 2: 12 visits, update after visit 7
+        # =====================================================
+        itinerary_12 = os.path.join(base_dir, "test_itineraries", "test_itinerary_12_visits.xlsx")
+        itinerary_12_updated = os.path.join(base_dir, "test_itineraries", "test_itinerary_12_updated_3more.xlsx")
+        tester.scenario_extended_test(
+            itinerary_path=itinerary_12,
+            updated_itinerary_path=itinerary_12_updated,
+            total_visits=12,
+            update_after_visit=7,
+            test_name="Extended Test: 12 Visits + Mid-Day Update"
+        )
 
-        # # Scenario 3: Unscheduled visit
-        # tester.scenario_unscheduled_visit(itinerary_8)
+        # Generate report for second test
+        report2 = tester.generate_report()
+        print(f"\n*** Test 2 Report: {report2} ***")
+        print("*** Workbook left open - opening new workbook for Test 3 ***\n")
+
+        # Reset for Test 3
+        tester.workbook.Close(SaveChanges=False)
+        tester.workbook = tester.excel.Workbooks.Open(workbook_path)
+        tester.excel.Application.Run("EnableTestMode")
+        tester.test_results = []
+        time.sleep(2)
+
+        # =====================================================
+        # TEST 3: 18 visits, update after visit 18
+        # =====================================================
+        itinerary_18 = os.path.join(base_dir, "test_itineraries", "test_itinerary_18_visits.xlsx")
+        itinerary_18_updated = os.path.join(base_dir, "test_itineraries", "test_itinerary_18_updated_3more.xlsx")
+        tester.scenario_extended_test(
+            itinerary_path=itinerary_18,
+            updated_itinerary_path=itinerary_18_updated,
+            total_visits=18,
+            update_after_visit=18,
+            test_name="Extended Test: 18 Visits + Update at End"
+        )
 
         # Generate report
         report_path = tester.generate_report()

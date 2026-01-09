@@ -160,6 +160,18 @@ Edit `generate_test_itinerary.py` to add:
 
 ## Changelog
 
+### v1.2.0 (2026-01-08)
+**Extended stress testing and bug fixes:**
+
+- **Vehicle Fix**: Now adds all extra rows FIRST, then fills from top row down (fixes Word export issue)
+- **Residents Fix**: "P" for P Denied Access (they answered), blank for Not Home
+- **Extended Test Scenarios**:
+  - 8 visits with mid-day update after visit 6
+  - 12 visits with mid-day update after visit 7
+  - 18 visits with update after all visits
+- **Varied Test Configs**: Automatic variation of outcomes, vehicles, and red flags across visits
+- **Stress Testing**: Runs all three extended tests sequentially to stress the system
+
 ### v1.1.0 (2026-01-08)
 **Major improvements to AI-generated content and test coverage:**
 
